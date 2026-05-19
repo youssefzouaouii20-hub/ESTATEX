@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Navigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { supabaseAdmin } from '../lib/supabaseAdmin'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import Footer from '../components/Footer'
@@ -68,20 +69,38 @@ export default function Admin() {
   const isAdmin = adminUnlocked
 
   useEffect(() => {
-    if (isAdmin) loadAll()
+    if (!isAdmin) return
+    loadAll()
+
+    // Real-time subscription — auto-reload when users, listings or offers change
+    const channel = supabase
+      .channel('admin-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' },
+        () => { loadAll() })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'listings' },
+        () => { loadAll() })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'buy_offers' },
+        () => { loadAll() })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'rent_applications' },
+        () => { loadAll() })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'contact_messages' },
+        () => { loadAll() })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
   }, [isAdmin])
 
   async function loadAll() {
     setDataLoading(true)
     const [users, listings, offers, rentapps, contacts, reits, portfolio, transactions] = await Promise.all([
-      supabase.from('users').select('*').order('created_at', { ascending: false }),
-      supabase.from('listings').select('*').order('created_at', { ascending: false }),
-      supabase.from('buy_offers').select('*').order('created_at', { ascending: false }),
-      supabase.from('rent_applications').select('*').order('created_at', { ascending: false }),
-      supabase.from('contact_messages').select('*').order('created_at', { ascending: false }),
-      supabase.from('reits').select('*').order('annual_return', { ascending: false }),
-      supabase.from('portfolio').select('*, users(full_name, email), reits(name, share_price)').order('created_at', { ascending: false }),
-      supabase.from('transactions').select('*, users(full_name), reits(name)').order('created_at', { ascending: false }).limit(100),
+      supabaseAdmin.from('users').select('*').order('created_at', { ascending: false }),
+      supabaseAdmin.from('listings').select('*').order('created_at', { ascending: false }),
+      supabaseAdmin.from('buy_offers').select('*').order('created_at', { ascending: false }),
+      supabaseAdmin.from('rent_applications').select('*').order('created_at', { ascending: false }),
+      supabaseAdmin.from('contact_messages').select('*').order('created_at', { ascending: false }),
+      supabaseAdmin.from('reits').select('*').order('annual_return', { ascending: false }),
+      supabaseAdmin.from('portfolio').select('*, users(full_name, email), reits(name, share_price)').order('created_at', { ascending: false }),
+      supabaseAdmin.from('transactions').select('*, users(full_name), reits(name)').order('created_at', { ascending: false }).limit(100),
     ])
     setData({
       users: users.data || [],
@@ -97,7 +116,7 @@ export default function Admin() {
   }
 
   async function updateStatus(table, id, status) {
-    const { error } = await supabase.from(table).update({ status }).eq('id', id)
+    const { error } = await supabaseAdmin.from(table).update({ status }).eq('id', id)
     if (error) { toast('Update failed', 'error'); return }
     toast(`Status updated to "${status}"`)
     loadAll()
@@ -105,7 +124,7 @@ export default function Admin() {
 
   async function deleteRow(table, id) {
     if (!window.confirm('Delete this record?')) return
-    await supabase.from(table).delete().eq('id', id)
+    await supabaseAdmin.from(table).delete().eq('id', id)
     toast('Record deleted')
     loadAll()
   }
@@ -219,12 +238,19 @@ export default function Admin() {
               <div className="label">Administration</div>
               <h1 style={{ fontSize: '1.8rem', fontWeight: 800 }}>Admin Dashboard</h1>
               <p style={{ color: 'var(--text2)', fontSize: '.88rem', marginTop: 4 }}>
-                Logged in as <strong style={{ color: 'var(--accent)' }}>{user?.email}</strong>
+                {user 
+                  ? <>Logged in as <strong style={{ color: 'var(--accent)' }}>{user.email}</strong></>
+                  : <span style={{ color: 'var(--warn)' }}>⚠ Not logged in — <a href="/login" style={{ color: 'var(--accent)' }}>Login first</a> to see all data</span>
+                }
               </p>
             </div>
-            <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:'.75rem', color:'var(--accent)', background:'var(--accent-dim)', border:'1px solid rgba(62,207,142,.2)', borderRadius:999, padding:'4px 12px' }}>
+                <span style={{ width:6, height:6, borderRadius:'50%', background:'var(--accent)', display:'inline-block' }} />
+                Live
+              </div>
               <button className="btn-ghost" onClick={loadAll}>↻ Refresh</button>
-              <Link to="/" className="btn-outline" style={{ fontSize: '.82rem' }}>← Back to Site</Link>
+              <Link to="/" className="btn-outline" style={{ fontSize:'.82rem' }}>← Back to Site</Link>
             </div>
           </div>
         </div>
