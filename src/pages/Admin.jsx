@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Navigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { supabaseAdmin } from '../lib/supabaseAdmin'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import Footer from '../components/Footer'
@@ -93,14 +92,14 @@ export default function Admin() {
   async function loadAll() {
     setDataLoading(true)
     const [users, listings, offers, rentapps, contacts, reits, portfolio, transactions] = await Promise.all([
-      supabaseAdmin.from('users').select('*').order('created_at', { ascending: false }),
-      supabaseAdmin.from('listings').select('*').order('created_at', { ascending: false }),
-      supabaseAdmin.from('buy_offers').select('*').order('created_at', { ascending: false }),
-      supabaseAdmin.from('rent_applications').select('*').order('created_at', { ascending: false }),
-      supabaseAdmin.from('contact_messages').select('*').order('created_at', { ascending: false }),
-      supabaseAdmin.from('reits').select('*').order('annual_return', { ascending: false }),
-      supabaseAdmin.from('portfolio').select('*, users(full_name, email), reits(name, share_price)').order('created_at', { ascending: false }),
-      supabaseAdmin.from('transactions').select('*, users(full_name), reits(name)').order('created_at', { ascending: false }).limit(100),
+      supabase.from('users').select('*').order('created_at', { ascending: false }),
+      supabase.from('listings').select('*').order('created_at', { ascending: false }),
+      supabase.from('buy_offers').select('*').order('created_at', { ascending: false }),
+      supabase.from('rent_applications').select('*').order('created_at', { ascending: false }),
+      supabase.from('contact_messages').select('*').order('created_at', { ascending: false }),
+      supabase.from('reits').select('*').order('annual_return', { ascending: false }),
+      supabase.from('portfolio').select('*, users(full_name, email), reits(name, share_price)').order('created_at', { ascending: false }),
+      supabase.from('transactions').select('*, users(full_name), reits(name)').order('created_at', { ascending: false }).limit(100),
     ])
     setData({
       users: users.data || [],
@@ -116,7 +115,7 @@ export default function Admin() {
   }
 
   async function updateStatus(table, id, status) {
-    const { error } = await supabaseAdmin.from(table).update({ status }).eq('id', id)
+    const { error } = await supabase.from(table).update({ status }).eq('id', id)
     if (error) { toast('Update failed', 'error'); return }
     toast(`Status updated to "${status}"`)
     loadAll()
@@ -124,7 +123,7 @@ export default function Admin() {
 
   async function deleteRow(table, id) {
     if (!window.confirm('Delete this record?')) return
-    await supabaseAdmin.from(table).delete().eq('id', id)
+    await supabase.from(table).delete().eq('id', id)
     toast('Record deleted')
     loadAll()
   }
